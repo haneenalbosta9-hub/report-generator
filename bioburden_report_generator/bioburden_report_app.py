@@ -1,12 +1,15 @@
-# bioburden_report_fixed.py
+# bioburden_report_complete.py
 import openpyxl
 from openpyxl.styles import PatternFill, Font, Alignment, Border, Side
+from openpyxl.drawing.image import Image
+from openpyxl.utils import get_column_letter
 from datetime import datetime
 import streamlit as st
 from io import BytesIO
+import os
 
 class BioburdenReportGenerator:
-    def __init__(self):
+    def __init__(self, logo_path=None):
         self.wb = openpyxl.Workbook()
         
         # Create two worksheets
@@ -14,42 +17,34 @@ class BioburdenReportGenerator:
         self.ws_cover.title = "Cover Page"
         self.ws_content = self.wb.create_sheet("Test Report")
         
-        self.current_row_cover = 1
-        self.current_row_content = 1
+        self.logo_path = logo_path or "SASOmed_Logo.png"
         
-        # Define styles exactly matching Word template
+        # Define styles
         self.styles = self._define_styles()
         
     def _define_styles(self):
-        """Define styles exactly matching the Word template"""
+        """Define all styles according to specifications"""
         return {
             'title_main': {
-                'font': Font(name='Times New Roman', bold=True, size=16),
-                'alignment': Alignment(horizontal='center', vertical='center', wrap_text=True)
-            },
-            'title_sub': {
                 'font': Font(name='Times New Roman', bold=True, size=12),
                 'alignment': Alignment(horizontal='center', vertical='center', wrap_text=True)
             },
             'cover_note': {
-                'font': Font(name='Times New Roman', italic=True, size=9),
-                'alignment': Alignment(horizontal='center', vertical='center')
+                'font': Font(name='Times New Roman', bold=True, size=12),
+                'alignment': Alignment(horizontal='center', vertical='center'),
+                'fill': PatternFill(start_color="D9D9D9", end_color="D9D9D9", fill_type="solid")
             },
-            'section_header': {
+            'info_label': {
                 'font': Font(name='Times New Roman', bold=True, size=12),
                 'alignment': Alignment(horizontal='left', vertical='center')
             },
-            'label_bold': {
-                'font': Font(name='Times New Roman', bold=True, size=10),
-                'alignment': Alignment(horizontal='left', vertical='center')
-            },
-            'label_value': {
-                'font': Font(name='Times New Roman', size=10),
+            'info_value': {
+                'font': Font(name='Times New Roman', size=12),
                 'alignment': Alignment(horizontal='left', vertical='center')
             },
             'table_header': {
                 'fill': PatternFill(start_color="D9D9D9", end_color="D9D9D9", fill_type="solid"),
-                'font': Font(name='Times New Roman', bold=True, size=10),
+                'font': Font(name='Times New Roman', bold=True, size=11),
                 'alignment': Alignment(horizontal='center', vertical='center', wrap_text=True),
                 'border': Border(
                     left=Side(style='thin'),
@@ -59,7 +54,7 @@ class BioburdenReportGenerator:
                 )
             },
             'table_data': {
-                'font': Font(name='Times New Roman', size=10),
+                'font': Font(name='Times New Roman', size=11),
                 'alignment': Alignment(horizontal='center', vertical='center', wrap_text=True),
                 'border': Border(
                     left=Side(style='thin'),
@@ -68,79 +63,173 @@ class BioburdenReportGenerator:
                     bottom=Side(style='thin')
                 )
             },
+            'table_data_left': {
+                'font': Font(name='Times New Roman', size=11),
+                'alignment': Alignment(horizontal='left', vertical='center', wrap_text=True),
+                'border': Border(
+                    left=Side(style='thin'),
+                    right=Side(style='thin'),
+                    top=Side(style='thin'),
+                    bottom=Side(style='thin')
+                )
+            },
             'underline_title': {
-                'font': Font(name='Times New Roman', bold=True, size=11, underline='single'),
+                'font': Font(name='Times New Roman', bold=True, size=12, underline='single'),
                 'alignment': Alignment(horizontal='left', vertical='center')
             },
             'reference': {
-                'font': Font(name='Times New Roman', italic=True, size=9),
+                'font': Font(name='Times New Roman', size=11),
                 'alignment': Alignment(horizontal='left', vertical='center', wrap_text=True)
             },
+            'method_title': {
+                'font': Font(name='Traditional Arabic', bold=True, size=11),
+                'alignment': Alignment(horizontal='left', vertical='center')
+            },
             'method_text': {
-                'font': Font(name='Times New Roman', size=9),
+                'font': Font(name='Times New Roman', size=10),
                 'alignment': Alignment(horizontal='left', vertical='center', wrap_text=True)
+            },
+            'footer_text': {
+                'font': Font(name='Times New Roman', size=10),
+                'alignment': Alignment(horizontal='center', vertical='center')
+            },
+            'arabic_header': {
+                'font': Font(name='Times New Roman', size=16),
+                'alignment': Alignment(horizontal='right', vertical='center')
+            },
+            'table_criteria_header': {
+                'fill': PatternFill(start_color="D9D9D9", end_color="D9D9D9", fill_type="solid"),
+                'font': Font(name='Times New Roman', bold=True, size=11),
+                'alignment': Alignment(horizontal='center', vertical='center', wrap_text=True),
+                'border': Border(
+                    left=Side(style='thin'),
+                    right=Side(style='thin'),
+                    top=Side(style='thin'),
+                    bottom=Side(style='thin')
+                )
+            },
+            'table_criteria_data': {
+                'font': Font(name='Times New Roman', bold=True, size=11),
+                'alignment': Alignment(horizontal='center', vertical='center', wrap_text=True),
+                'border': Border(
+                    left=Side(style='thin'),
+                    right=Side(style='thin'),
+                    top=Side(style='thin'),
+                    bottom=Side(style='thin')
+                )
             }
         }
     
-    def set_page_setup(self):
-        """Configure page setup for A4 printing"""
-        for ws in [self.ws_cover, self.ws_content]:
-            ws.page_setup.orientation = ws.ORIENTATION_PORTRAIT
-            ws.page_setup.paperSize = ws.PAPERSIZE_A4
-            ws.page_setup.fitToPage = True
-            ws.page_setup.fitToWidth = 1
-            ws.page_setup.fitToHeight = 0
-            
-            # Set column widths
-            ws.column_dimensions['A'].width = 20
-            ws.column_dimensions['B'].width = 30
-            ws.column_dimensions['C'].width = 30
-            ws.column_dimensions['D'].width = 25
+    def add_header(self, ws, page_number, total_pages):
+        """Add header with logo and Arabic text"""
+        # Header is handled via header/footer, but we'll add to the worksheet
+        
+        # Add logo (left side) - at row 1, column A
+        if os.path.exists(self.logo_path):
+            try:
+                img = Image(self.logo_path)
+                img.width = 150
+                img.height = 60
+                ws.add_image(img, 'A1')
+            except:
+                # If logo not found, add text placeholder
+                ws['A1'] = "[LOGO]"
+                ws['A1'].font = Font(name='Times New Roman', size=10)
+        
+        # Add Arabic text (right side)
+        arabic_cell = ws['E1']
+        arabic_cell.value = "الاقليمية للصناعات الطبية و المخبرية"
+        arabic_cell.font = Font(name='Times New Roman', size=16)
+        arabic_cell.alignment = Alignment(horizontal='right', vertical='center')
+        
+        # Merge cells for better layout
+        ws.merge_cells('A1:B1')  # Logo area
+        ws.merge_cells('D1:E1')  # Arabic text area
+        
+        # Set row height for header
+        ws.row_dimensions[1].height = 80
+        
+        return 3  # Return starting row after header
     
-    def add_exact_header_footer(self, ws, page_type="cover"):
-        """Add exact header and footer matching Word template"""
-        # Access header and footer correctly
-        if page_type == "cover":
-            # Cover page - no header/footer
-            ws.oddHeader.center.text = ""
-            ws.oddFooter.center.text = ""
-        else:
-            # Content page - no header/footer as per Word template
-            ws.oddHeader.center.text = ""
-            ws.oddFooter.center.text = ""
+    def add_footer(self, ws, page_num, total_pages):
+        """Add footer with technical manager and contact information"""
+        start_row = ws.max_row + 2
+        
+        # Technical Manager line
+        ws.merge_cells(f'A{start_row}:B{start_row}')
+        tech_manager_cell = ws[f'A{start_row}']
+        tech_manager_cell.value = "Technical Manager"
+        tech_manager_cell.font = Font(name='Times New Roman', size=10)
+        tech_manager_cell.alignment = Alignment(horizontal='left')
+        
+        ws.merge_cells(f'C{start_row}:E{start_row}')
+        sign_cell = ws[f'C{start_row}']
+        sign_cell.value = "Sign and Date: _____________"
+        sign_cell.font = Font(name='Times New Roman', size=10)
+        sign_cell.alignment = Alignment(horizontal='right')
+        
+        start_row += 1
+        
+        # Page x of y
+        ws.merge_cells(f'A{start_row}:E{start_row}')
+        page_cell = ws[f'A{start_row}']
+        page_cell.value = f"Page {page_num} of {total_pages}"
+        page_cell.font = Font(name='Times New Roman', size=10)
+        page_cell.alignment = Alignment(horizontal='center')
+        
+        start_row += 1
+        
+        # Contact information table (invisible borders except top)
+        contact_data = [
+            ["Amman - Jordan", "Fax: +962 6 5829665", "Tel: +962 6 5829658"],
+            ["Postal code: 11814", "", ""]
+        ]
+        
+        for row_idx, row in enumerate(contact_data):
+            current_row = start_row + row_idx
+            for col_idx, value in enumerate(row):
+                col_letter = get_column_letter(col_idx + 1)
+                cell = ws[f'{col_letter}{current_row}']
+                cell.value = value
+                cell.font = Font(name='Times New Roman', size=10)
+                cell.alignment = Alignment(horizontal='center', vertical='center')
+                
+                # Add only top border for the first row
+                if row_idx == 0:
+                    cell.border = Border(
+                        top=Side(style='medium'),
+                        left=Side(style=None),
+                        right=Side(style=None),
+                        bottom=Side(style=None)
+                    )
+        
+        return start_row + 2
     
     def create_cover_page(self, data):
-        """Create cover page exactly matching Word template"""
-        self.set_page_setup()
-        self.add_exact_header_footer(self.ws_cover, "cover")
+        """Create cover page with all specifications"""
+        # Add header
+        self.add_header(self.ws_cover, 1, 2)
         
-        current_row = 1
+        current_row = 5
         
-        # Main Title (exactly as in Word)
-        self.ws_cover.merge_cells(f'A{current_row}:D{current_row}')
+        # Title
+        self.ws_cover.merge_cells(f'A{current_row}:E{current_row}')
         cell = self.ws_cover[f'A{current_row}']
-        cell.value = "Microbiological Examination of Nonsterile Products: Microbial\nEnumeration Tests"
+        cell.value = "Microbiological Examination of Nonsterile Products: Microbial Enumeration Tests\nDetermines the Total Population of Aerobic Bacteria and Yeast and Molds in the Product (Bioburden test)"
         cell.font = self.styles['title_main']['font']
         cell.alignment = self.styles['title_main']['alignment']
         current_row += 2
         
-        # Subtitle
-        self.ws_cover.merge_cells(f'A{current_row}:D{current_row}')
-        cell = self.ws_cover[f'A{current_row}']
-        cell.value = "Determines the Total Population of Aerobic Bacteria and Yeast and\nMolds in the Product (Bioburden test)"
-        cell.font = self.styles['title_sub']['font']
-        cell.alignment = self.styles['title_sub']['alignment']
-        current_row += 2
-        
-        # Cover page note
-        self.ws_cover.merge_cells(f'A{current_row}:D{current_row}')
+        # Cover note with grey background
+        self.ws_cover.merge_cells(f'A{current_row}:E{current_row}')
         cell = self.ws_cover[f'A{current_row}']
         cell.value = "The cover page is an integral part of this test report"
         cell.font = self.styles['cover_note']['font']
-        cell.alignment = Alignment(horizontal='center')
-        current_row += 3
+        cell.fill = self.styles['cover_note']['fill']
+        cell.alignment = self.styles['cover_note']['alignment']
+        current_row += 2
         
-        # Sample Information Section
+        # Sample Information
         info_fields = [
             ("Sample Receiving Date:", data.get('received_date', '')),
             ("Test Performing Date:", data.get('test_performing_date', '')),
@@ -153,22 +242,18 @@ class BioburdenReportGenerator:
             # Label
             label_cell = self.ws_cover.cell(row=current_row, column=1)
             label_cell.value = label
-            label_cell.font = self.styles['label_bold']['font']
+            label_cell.font = self.styles['info_label']['font']
             
             # Value
             value_cell = self.ws_cover.cell(row=current_row, column=2)
-            if "Sample condition" in label:
-                value_cell.value = "✓ Accepted"
-                value_cell.font = Font(name='Times New Roman', size=10, color="008000")
-            else:
-                value_cell.value = value
-                value_cell.font = Font(name='Times New Roman', size=10)
+            value_cell.value = value
+            value_cell.font = self.styles['info_value']['font']
             
             current_row += 1
         
         current_row += 1
         
-        # Product Information Table (exactly as in Word template)
+        # Product Information Table
         table_start_row = current_row
         
         # Table headers
@@ -179,7 +264,11 @@ class BioburdenReportGenerator:
             cell.font = self.styles['table_header']['font']
             cell.fill = self.styles['table_header']['fill']
             cell.alignment = self.styles['table_header']['alignment']
-            cell.border = self.styles['table_header']['border']
+            # Border without sides
+            cell.border = Border(
+                top=Side(style='thin'),
+                bottom=Side(style='thin')
+            )
         
         current_row += 1
         
@@ -194,32 +283,40 @@ class BioburdenReportGenerator:
         for col, value in enumerate(row_data, 1):
             cell = self.ws_cover.cell(row=current_row, column=col)
             cell.value = value
-            cell.font = self.styles['table_data']['font']
+            cell.font = self.styles['table_data_left']['font']
             cell.alignment = Alignment(horizontal='left', vertical='center', wrap_text=True)
-            cell.border = self.styles['table_data']['border']
+            # Border without sides
+            cell.border = Border(
+                top=Side(style='thin'),
+                bottom=Side(style='thin')
+            )
         
-        # Set row height for better visibility
-        self.ws_cover.row_dimensions[current_row].height = 40
+        # Set row height
+        self.ws_cover.row_dimensions[current_row].height = 50
+        
+        # Add footer
+        self.add_footer(self.ws_cover, 1, 2)
         
         return current_row
     
     def create_content_page(self, data):
-        """Create content page exactly matching Word template"""
-        self.add_exact_header_footer(self.ws_content, "content")
+        """Create content page with test results"""
+        # Add header
+        self.add_header(self.ws_content, 2, 2)
         
-        current_row = 1
+        current_row = 5
         
-        # Test Results title (underlined as in Word)
-        self.ws_content.merge_cells(f'A{current_row}:D{current_row}')
+        # Test Results title
+        self.ws_content.merge_cells(f'A{current_row}:E{current_row}')
         cell = self.ws_content[f'A{current_row}']
         cell.value = "Test Results:"
         cell.font = self.styles['underline_title']['font']
         current_row += 2
         
-        # Test Results Table (exactly as in Word template)
+        # Test Results Table
         headers = ["Sample Identification", "Total Aerobic Microbial Count CFU/ml", "Total Combined Yeasts/Molds Count CFU/ml"]
         
-        # Add headers
+        # Add headers with full borders
         for col, header in enumerate(headers, 1):
             cell = self.ws_content.cell(row=current_row, column=col)
             cell.value = header
@@ -236,26 +333,38 @@ class BioburdenReportGenerator:
             results = [results]
         
         for result in results:
+            tamc = result.get('tamc_result', '')
+            tymc = result.get('tymc_result', '')
+            batch_no = data.get('sample_batch_no', '')
+            
+            # Check if result is 0
+            if tamc == '0' or tamc == 0 or tamc == '0 CFU/ml':
+                tamc = f"No microbial growth was detected for batch number {batch_no}"
+            
+            if tymc == '0' or tymc == 0 or tymc == '0 CFU/ml':
+                tymc = f"No microbial growth was detected for batch number {batch_no}"
+            
             row_data = [
                 result.get('sample_id', ''),
-                result.get('tamc_result', ''),
-                result.get('tymc_result', '')
+                tamc,
+                tymc
             ]
             
             for col, value in enumerate(row_data, 1):
                 cell = self.ws_content.cell(row=current_row, column=col)
                 cell.value = value
                 cell.font = self.styles['table_data']['font']
-                cell.alignment = Alignment(horizontal='center', vertical='center')
+                cell.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
                 cell.border = self.styles['table_data']['border']
             
             current_row += 1
         
         current_row += 2
         
-        # Acceptance criteria text (exactly as in Word)
+        # Acceptance criteria text
         criteria_text = [
-            "Acceptance criteria for nonsterile pharmaceutical products based upon the total aerobic microbial count (TAMC) and the total combined yeasts and molds count (TYMC) are given in Table 1.",
+            "Acceptance criteria for nonsterile pharmaceutical products based upon the total aerobic microbial count",
+            "(TAMC) and the total combined yeasts and molds count (TYMC) are given in Table 1.",
             "",
             "Acceptance criteria are based on 〈1111〉 MICROBIOLOGICAL individual results",
             "",
@@ -267,7 +376,7 @@ class BioburdenReportGenerator:
         
         for line in criteria_text:
             if line:
-                self.ws_content.merge_cells(f'A{current_row}:D{current_row}')
+                self.ws_content.merge_cells(f'A{current_row}:E{current_row}')
                 cell = self.ws_content[f'A{current_row}']
                 cell.value = line
                 cell.font = self.styles['reference']['font']
@@ -278,11 +387,11 @@ class BioburdenReportGenerator:
         
         current_row += 1
         
-        # Table 1: Acceptance Criteria (exactly as in Word)
-        self.ws_content.merge_cells(f'A{current_row}:D{current_row}')
+        # Table 1 title
+        self.ws_content.merge_cells(f'A{current_row}:E{current_row}')
         cell = self.ws_content[f'A{current_row}']
         cell.value = "Table 1: Acceptance Criteria for Microbiological Quality of Nonsterile Substances for Pharmaceutical Use"
-        cell.font = Font(name='Times New Roman', bold=True, size=10)
+        cell.font = Font(name='Times New Roman', size=11)
         cell.alignment = Alignment(horizontal='center')
         current_row += 1
         
@@ -292,10 +401,10 @@ class BioburdenReportGenerator:
         for col, header in enumerate(table_headers, 1):
             cell = self.ws_content.cell(row=current_row, column=col)
             cell.value = header
-            cell.font = self.styles['table_header']['font']
-            cell.fill = self.styles['table_header']['fill']
-            cell.alignment = self.styles['table_header']['alignment']
-            cell.border = self.styles['table_header']['border']
+            cell.font = self.styles['table_criteria_header']['font']
+            cell.fill = self.styles['table_criteria_header']['fill']
+            cell.alignment = self.styles['table_criteria_header']['alignment']
+            cell.border = self.styles['table_criteria_header']['border']
         
         current_row += 1
         
@@ -305,45 +414,48 @@ class BioburdenReportGenerator:
         for col, value in enumerate(table_data, 1):
             cell = self.ws_content.cell(row=current_row, column=col)
             cell.value = value
-            cell.font = self.styles['table_data']['font']
+            cell.font = self.styles['table_criteria_data']['font']
             cell.alignment = Alignment(horizontal='center')
-            cell.border = self.styles['table_data']['border']
+            cell.border = self.styles['table_criteria_data']['border']
         
         current_row += 2
         
-        # Reference (exactly as in Word)
-        self.ws_content.merge_cells(f'A{current_row}:D{current_row}')
+        # Reference
+        self.ws_content.merge_cells(f'A{current_row}:E{current_row}')
         cell = self.ws_content[f'A{current_row}']
         cell.value = "Reference: 〈1111〉 Microbiological Examination / General Information"
-        cell.font = Font(name='Times New Roman', italic=True, size=9)
+        cell.font = Font(name='Times New Roman', size=11)
         cell.alignment = Alignment(horizontal='left')
         current_row += 2
         
-        # Test Method (exactly as in Word)
-        self.ws_content.merge_cells(f'A{current_row}:D{current_row}')
-        cell = self.ws_content[f'A{current_row}']
+        # Test Method
+        cell = self.ws_content.cell(row=current_row, column=1)
         cell.value = "Test Method:"
-        cell.font = Font(name='Times New Roman', bold=True, size=10)
+        cell.font = Font(name='Traditional Arabic', bold=True, size=11)
         current_row += 1
         
-        self.ws_content.merge_cells(f'A{current_row}:D{current_row}')
+        self.ws_content.merge_cells(f'A{current_row}:E{current_row}')
         cell = self.ws_content[f'A{current_row}']
-        cell.value = "ISO 11737-1 Sterilization of health care products -- Microbiological methods -- Part 1: Determination of the population of microorganisms on product, and USP 〈61〉 \"Bioburden\" or \"Microbial Limits\" test."
-        cell.font = Font(name='Times New Roman', size=9)
+        cell.value = "ISO 11737-1 Sterilization of health care products – Microbiological methods – Part 1: Determination of the population\nof microorganisms on product, and USP 〈61〉 \"Bioburden\" or \"Microbial Limits\" test."
+        cell.font = Font(name='Times New Roman', size=10)
         cell.alignment = Alignment(horizontal='left', wrap_text=True)
-        current_row += 3
         
-        # End of Report (exactly as in Word)
-        self.ws_content.merge_cells(f'A{current_row}:D{current_row}')
-        cell = self.ws_content[f'A{current_row}']
-        cell.value = "End of Report"
-        cell.font = Font(name='Times New Roman', bold=True, italic=True, size=10)
-        cell.alignment = Alignment(horizontal='center')
+        # Add footer
+        self.add_footer(self.ws_content, 2, 2)
     
     def generate_report(self, data):
-        """Generate complete report matching Word template exactly"""
+        """Generate complete report"""
         self.create_cover_page(data)
         self.create_content_page(data)
+        
+        # Set column widths for both sheets
+        for ws in [self.ws_cover, self.ws_content]:
+            ws.column_dimensions['A'].width = 25
+            ws.column_dimensions['B'].width = 30
+            ws.column_dimensions['C'].width = 30
+            ws.column_dimensions['D'].width = 20
+            ws.column_dimensions['E'].width = 20
+        
         return self.wb
 
 
@@ -351,15 +463,18 @@ class BioburdenReportGenerator:
 def main():
     st.set_page_config(
         page_title="Bioburden Test Report Generator",
-        page_icon="📋",
+        page_icon="🔬",
         layout="wide"
     )
     
-    st.title("📋 Bioburden Test Report Generator")
-    st.markdown("Generates reports exactly matching the Word template format")
+    st.title("🔬 Bioburden Test Report Generator")
+    st.markdown("Generates professional laboratory reports with SASOmed logo and specifications")
+    
+    # File upload for logo
+    uploaded_logo = st.file_uploader("Upload SASOmed Logo (PNG file)", type=['png'], key="logo_uploader")
     
     with st.form("report_form"):
-        st.subheader("Sample Information")
+        st.subheader("📅 Sample Information")
         col1, col2 = st.columns(2)
         
         with col1:
@@ -370,7 +485,7 @@ def main():
         with col2:
             customer_name = st.text_input("Customer Name")
         
-        st.subheader("Product Information")
+        st.subheader("🏭 Product Information")
         col3, col4 = st.columns(2)
         
         with col3:
@@ -381,22 +496,29 @@ def main():
             sample_batch_no = st.text_input("Sample Batch No.")
             reference_no = st.text_input("Reference No.")
         
-        st.subheader("Test Results")
+        st.subheader("🧪 Test Results")
         col5, col6 = st.columns(2)
         
         with col5:
             tamc_result = st.text_input("Total Aerobic Microbial Count (TAMC) CFU/ml", 
-                                        placeholder="e.g., <10, 50, 100")
+                                        placeholder="e.g., <10, 50, 100, or 0")
         with col6:
             tymc_result = st.text_input("Total Combined Yeasts/Molds Count (TYMC) CFU/ml",
-                                        placeholder="e.g., <10, 20, 50")
+                                        placeholder="e.g., <10, 20, 50, or 0")
         
         submitted = st.form_submit_button("Generate Report", use_container_width=True)
     
     if submitted:
         if not product_description or not sample_id:
-            st.error("Please fill in Product Description and Sample ID")
+            st.error("❌ Please fill in Product Description and Sample ID")
             return
+        
+        # Save uploaded logo temporarily if provided
+        logo_path = None
+        if uploaded_logo:
+            logo_path = f"/tmp/SASOmed_Logo_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png"
+            with open(logo_path, "wb") as f:
+                f.write(uploaded_logo.getbuffer())
         
         # Prepare data
         report_data = {
@@ -415,8 +537,8 @@ def main():
             }]
         }
         
-        with st.spinner("Generating report..."):
-            generator = BioburdenReportGenerator()
+        with st.spinner("Generating professional report..."):
+            generator = BioburdenReportGenerator(logo_path)
             workbook = generator.generate_report(report_data)
             
             output = BytesIO()
@@ -433,32 +555,32 @@ def main():
             use_container_width=True
         )
         
-        # Show preview info
-        with st.expander("📄 Report Structure Preview"):
+        # Show preview
+        with st.expander("📄 Report Specifications"):
             st.markdown("""
-            **The generated report includes:**
+            **The report includes:**
+            
+            **Header (Both Pages):**
+            - Left: SASOmed Logo
+            - Right: Arabic text "الاقليمية للصناعات الطبية و المخبرية"
+            
+            **Footer (Both Pages):**
+            - Technical Manager with sign/date field
+            - Page numbers (1 of 2, 2 of 2)
+            - Contact information with top border only
             
             **Cover Page:**
-            - Main title and subtitle
-            - Sample information (dates, customer, condition)
-            - Product information table with borders
-            - Professional Times New Roman font
+            - Main title (bold, centered, Times New Roman 12)
+            - Grey background note
+            - Sample information (bold labels)
+            - Product table (no side borders)
             
             **Test Report Page:**
-            - Test results table
-            - Complete acceptance criteria text
+            - Test results with "No microbial growth" for zero results
+            - Complete acceptance criteria
             - Table 1 with microbiological limits
-            - Reference information
-            - Test method documentation
-            - End of report marker
-            
-            **Format:**
-            - A4 paper size
-            - Professional borders and formatting
-            - Ready for printing
+            - Test method (Traditional Arabic title, Times New Roman text)
             """)
-        
-        st.info("💡 The report exactly matches your Word template structure with proper formatting and layout.")
 
 if __name__ == "__main__":
     main()
