@@ -1,15 +1,16 @@
-# bioburden_report_complete.py
+# bioburden_report_final.py
 import openpyxl
 from openpyxl.styles import PatternFill, Font, Alignment, Border, Side
 from openpyxl.drawing.image import Image
 from openpyxl.utils import get_column_letter
+from openpyxl.worksheet.page import PageMargins
 from datetime import datetime
 import streamlit as st
 from io import BytesIO
 import os
 
 class BioburdenReportGenerator:
-    def __init__(self, logo_path=None):
+    def __init__(self, logo_path="SASOmed_Logo.png"):
         self.wb = openpyxl.Workbook()
         
         # Create two worksheets
@@ -17,11 +18,47 @@ class BioburdenReportGenerator:
         self.ws_cover.title = "Cover Page"
         self.ws_content = self.wb.create_sheet("Test Report")
         
-        self.logo_path = logo_path or "SASOmed_Logo.png"
+        self.logo_path = logo_path
         
         # Define styles
         self.styles = self._define_styles()
         
+        # Set A4 page setup for both sheets
+        self.set_a4_page_setup()
+        
+    def set_a4_page_setup(self):
+        """Configure A4 page setup for both worksheets"""
+        for ws in [self.ws_cover, self.ws_content]:
+            # Page setup for A4
+            ws.page_setup.paperSize = ws.PAPERSIZE_A4
+            ws.page_setup.orientation = ws.ORIENTATION_PORTRAIT
+            ws.page_setup.fitToPage = True
+            ws.page_setup.fitToWidth = 1
+            ws.page_setup.fitToHeight = 0
+            
+            # Set page margins (in inches)
+            ws.page_margins = PageMargins(
+                left=0.7,
+                right=0.7,
+                top=0.75,
+                bottom=0.75,
+                header=0.3,
+                footer=0.3
+            )
+            
+            # Set print area to cover all content
+            ws.print_options.horizontalCentered = True
+            
+            # Set column widths for A4
+            ws.column_dimensions['A'].width = 12
+            ws.column_dimensions['B'].width = 20
+            ws.column_dimensions['C'].width = 20
+            ws.column_dimensions['D'].width = 18
+            ws.column_dimensions['E'].width = 18
+            
+            # Set default row height
+            ws.row_dimensions[1].height = 80  # Header row
+    
     def _define_styles(self):
         """Define all styles according to specifications"""
         return {
@@ -94,8 +131,8 @@ class BioburdenReportGenerator:
                 'alignment': Alignment(horizontal='center', vertical='center')
             },
             'arabic_header': {
-                'font': Font(name='Times New Roman', size=16),
-                'alignment': Alignment(horizontal='right', vertical='center')
+                'font': Font(name='Times New Roman', size=14),
+                'alignment': Alignment(horizontal='left', vertical='center')
             },
             'table_criteria_header': {
                 'fill': PatternFill(start_color="D9D9D9", end_color="D9D9D9", fill_type="solid"),
@@ -120,97 +157,103 @@ class BioburdenReportGenerator:
             }
         }
     
-    def add_header(self, ws, page_number, total_pages):
-        """Add header with logo and Arabic text"""
-        # Header is handled via header/footer, but we'll add to the worksheet
-        
-        # Add logo (left side) - at row 1, column A
+    def add_header(self, ws):
+        """Add header with logo on left and Arabic text on right"""
+        # Logo on left side (Column A)
         if os.path.exists(self.logo_path):
             try:
                 img = Image(self.logo_path)
-                img.width = 150
+                # Resize logo to fit nicely
+                img.width = 120
                 img.height = 60
                 ws.add_image(img, 'A1')
-            except:
-                # If logo not found, add text placeholder
-                ws['A1'] = "[LOGO]"
+            except Exception as e:
+                print(f"Error adding logo: {e}")
+                ws['A1'] = "[SASOmed Logo]"
                 ws['A1'].font = Font(name='Times New Roman', size=10)
+        else:
+            ws['A1'] = "[SASOmed Logo]"
+            ws['A1'].font = Font(name='Times New Roman', size=10)
         
-        # Add Arabic text (right side)
+        # Arabic text on right side (Column E)
         arabic_cell = ws['E1']
         arabic_cell.value = "الاقليمية للصناعات الطبية و المخبرية"
-        arabic_cell.font = Font(name='Times New Roman', size=16)
+        arabic_cell.font = Font(name='Times New Roman', size=14, bold=True)
         arabic_cell.alignment = Alignment(horizontal='right', vertical='center')
         
         # Merge cells for better layout
         ws.merge_cells('A1:B1')  # Logo area
         ws.merge_cells('D1:E1')  # Arabic text area
         
-        # Set row height for header
-        ws.row_dimensions[1].height = 80
+        # Add a separator line below header
+        for col in range(1, 6):
+            cell = ws.cell(row=2, column=col)
+            cell.border = Border(bottom=Side(style='thin'))
         
         return 3  # Return starting row after header
     
     def add_footer(self, ws, page_num, total_pages):
         """Add footer with technical manager and contact information"""
-        start_row = ws.max_row + 2
+        # Find last row with content
+        last_row = ws.max_row + 2
         
         # Technical Manager line
-        ws.merge_cells(f'A{start_row}:B{start_row}')
-        tech_manager_cell = ws[f'A{start_row}']
+        ws.merge_cells(f'A{last_row}:B{last_row}')
+        tech_manager_cell = ws[f'A{last_row}']
         tech_manager_cell.value = "Technical Manager"
-        tech_manager_cell.font = Font(name='Times New Roman', size=10)
+        tech_manager_cell.font = Font(name='Times New Roman', size=10, bold=True)
         tech_manager_cell.alignment = Alignment(horizontal='left')
         
-        ws.merge_cells(f'C{start_row}:E{start_row}')
-        sign_cell = ws[f'C{start_row}']
+        ws.merge_cells(f'C{last_row}:E{last_row}')
+        sign_cell = ws[f'C{last_row}']
         sign_cell.value = "Sign and Date: _____________"
         sign_cell.font = Font(name='Times New Roman', size=10)
         sign_cell.alignment = Alignment(horizontal='right')
         
-        start_row += 1
+        last_row += 1
         
         # Page x of y
-        ws.merge_cells(f'A{start_row}:E{start_row}')
-        page_cell = ws[f'A{start_row}']
+        ws.merge_cells(f'A{last_row}:E{last_row}')
+        page_cell = ws[f'A{last_row}']
         page_cell.value = f"Page {page_num} of {total_pages}"
         page_cell.font = Font(name='Times New Roman', size=10)
         page_cell.alignment = Alignment(horizontal='center')
         
-        start_row += 1
+        last_row += 1
         
         # Contact information table (invisible borders except top)
-        contact_data = [
-            ["Amman - Jordan", "Fax: +962 6 5829665", "Tel: +962 6 5829658"],
-            ["Postal code: 11814", "", ""]
-        ]
+        # First row of contact info
+        col_positions = [1, 3, 5]  # A, C, E columns
+        contact_texts = ["Amman - Jordan", "Fax: +962 6 5829665", "Tel: +962 6 5829658"]
         
-        for row_idx, row in enumerate(contact_data):
-            current_row = start_row + row_idx
-            for col_idx, value in enumerate(row):
-                col_letter = get_column_letter(col_idx + 1)
-                cell = ws[f'{col_letter}{current_row}']
-                cell.value = value
-                cell.font = Font(name='Times New Roman', size=10)
-                cell.alignment = Alignment(horizontal='center', vertical='center')
-                
-                # Add only top border for the first row
-                if row_idx == 0:
-                    cell.border = Border(
-                        top=Side(style='medium'),
-                        left=Side(style=None),
-                        right=Side(style=None),
-                        bottom=Side(style=None)
-                    )
+        for col, text in zip(col_positions, contact_texts):
+            col_letter = get_column_letter(col)
+            cell = ws[f'{col_letter}{last_row}']
+            cell.value = text
+            cell.font = Font(name='Times New Roman', size=10)
+            cell.alignment = Alignment(horizontal='center', vertical='center')
+            # Add only top border
+            cell.border = Border(top=Side(style='medium'))
         
-        return start_row + 2
+        last_row += 1
+        
+        # Second row of contact info - Postal code
+        postal_cell = ws[f'A{last_row}']
+        postal_cell.value = "Postal code: 11814"
+        postal_cell.font = Font(name='Times New Roman', size=10)
+        postal_cell.alignment = Alignment(horizontal='center', vertical='center')
+        
+        # Add top border for postal code as well to create separation
+        postal_cell.border = Border(top=Side(style='thin'))
+        
+        return last_row
     
     def create_cover_page(self, data):
         """Create cover page with all specifications"""
         # Add header
-        self.add_header(self.ws_cover, 1, 2)
+        self.add_header(self.ws_cover)
         
-        current_row = 5
+        current_row = 4
         
         # Title
         self.ws_cover.merge_cells(f'A{current_row}:E{current_row}')
@@ -248,15 +291,15 @@ class BioburdenReportGenerator:
             value_cell = self.ws_cover.cell(row=current_row, column=2)
             value_cell.value = value
             value_cell.font = self.styles['info_value']['font']
+            if "Accepted" in value:
+                value_cell.font = Font(name='Times New Roman', size=12, color="008000")
             
             current_row += 1
         
         current_row += 1
         
         # Product Information Table
-        table_start_row = current_row
-        
-        # Table headers
+        # Table headers - without side borders
         headers = ["Product Description", "Sample ID", "Product code"]
         for col, header in enumerate(headers, 1):
             cell = self.ws_cover.cell(row=current_row, column=col)
@@ -264,7 +307,7 @@ class BioburdenReportGenerator:
             cell.font = self.styles['table_header']['font']
             cell.fill = self.styles['table_header']['fill']
             cell.alignment = self.styles['table_header']['alignment']
-            # Border without sides
+            # Border without sides (only top and bottom)
             cell.border = Border(
                 top=Side(style='thin'),
                 bottom=Side(style='thin')
@@ -302,9 +345,9 @@ class BioburdenReportGenerator:
     def create_content_page(self, data):
         """Create content page with test results"""
         # Add header
-        self.add_header(self.ws_content, 2, 2)
+        self.add_header(self.ws_content)
         
-        current_row = 5
+        current_row = 4
         
         # Test Results title
         self.ws_content.merge_cells(f'A{current_row}:E{current_row}')
@@ -313,7 +356,7 @@ class BioburdenReportGenerator:
         cell.font = self.styles['underline_title']['font']
         current_row += 2
         
-        # Test Results Table
+        # Test Results Table with full borders
         headers = ["Sample Identification", "Total Aerobic Microbial Count CFU/ml", "Total Combined Yeasts/Molds Count CFU/ml"]
         
         # Add headers with full borders
@@ -333,15 +376,15 @@ class BioburdenReportGenerator:
             results = [results]
         
         for result in results:
-            tamc = result.get('tamc_result', '')
-            tymc = result.get('tymc_result', '')
+            tamc = str(result.get('tamc_result', ''))
+            tymc = str(result.get('tymc_result', ''))
             batch_no = data.get('sample_batch_no', '')
             
             # Check if result is 0
-            if tamc == '0' or tamc == 0 or tamc == '0 CFU/ml':
+            if tamc == '0' or tamc == '0.0' or tamc.lower() == 'zero':
                 tamc = f"No microbial growth was detected for batch number {batch_no}"
             
-            if tymc == '0' or tymc == 0 or tymc == '0 CFU/ml':
+            if tymc == '0' or tymc == '0.0' or tymc.lower() == 'zero':
                 tymc = f"No microbial growth was detected for batch number {batch_no}"
             
             row_data = [
@@ -448,14 +491,6 @@ class BioburdenReportGenerator:
         self.create_cover_page(data)
         self.create_content_page(data)
         
-        # Set column widths for both sheets
-        for ws in [self.ws_cover, self.ws_content]:
-            ws.column_dimensions['A'].width = 25
-            ws.column_dimensions['B'].width = 30
-            ws.column_dimensions['C'].width = 30
-            ws.column_dimensions['D'].width = 20
-            ws.column_dimensions['E'].width = 20
-        
         return self.wb
 
 
@@ -468,10 +503,12 @@ def main():
     )
     
     st.title("🔬 Bioburden Test Report Generator")
-    st.markdown("Generates professional laboratory reports with SASOmed logo and specifications")
+    st.markdown("Generates professional A4 laboratory reports with SASOmed logo")
     
-    # File upload for logo
-    uploaded_logo = st.file_uploader("Upload SASOmed Logo (PNG file)", type=['png'], key="logo_uploader")
+    # Check for logo file
+    logo_exists = os.path.exists("SASOmed_Logo.png")
+    if not logo_exists:
+        st.warning("⚠️ SASOmed_Logo.png not found in the current directory. Please ensure the logo file is present.")
     
     with st.form("report_form"):
         st.subheader("📅 Sample Information")
@@ -513,13 +550,6 @@ def main():
             st.error("❌ Please fill in Product Description and Sample ID")
             return
         
-        # Save uploaded logo temporarily if provided
-        logo_path = None
-        if uploaded_logo:
-            logo_path = f"/tmp/SASOmed_Logo_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png"
-            with open(logo_path, "wb") as f:
-                f.write(uploaded_logo.getbuffer())
-        
         # Prepare data
         report_data = {
             'received_date': received_date.strftime('%Y-%m-%d'),
@@ -537,8 +567,8 @@ def main():
             }]
         }
         
-        with st.spinner("Generating professional report..."):
-            generator = BioburdenReportGenerator(logo_path)
+        with st.spinner("Generating professional A4 report..."):
+            generator = BioburdenReportGenerator("SASOmed_Logo.png")
             workbook = generator.generate_report(report_data)
             
             output = BytesIO()
@@ -548,7 +578,7 @@ def main():
         st.success("✅ Report generated successfully!")
         
         st.download_button(
-            label="📥 Download Excel Report",
+            label="📥 Download Excel Report (A4 Format)",
             data=output,
             file_name=f"Bioburden_Report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -558,7 +588,7 @@ def main():
         # Show preview
         with st.expander("📄 Report Specifications"):
             st.markdown("""
-            **The report includes:**
+            **Report Format: A4 Paper Size**
             
             **Header (Both Pages):**
             - Left: SASOmed Logo
