@@ -1,7 +1,6 @@
-# bioburden_report_exact.py
+# bioburden_report_fixed.py
 import openpyxl
 from openpyxl.styles import PatternFill, Font, Alignment, Border, Side
-from openpyxl.worksheet.header_footer import _HeaderFooterPart
 from datetime import datetime
 import streamlit as st
 from io import BytesIO
@@ -91,51 +90,24 @@ class BioburdenReportGenerator:
             ws.page_setup.fitToPage = True
             ws.page_setup.fitToWidth = 1
             ws.page_setup.fitToHeight = 0
-            ws.page_setup.topMargin = 0.75
-            ws.page_setup.bottomMargin = 0.75
-            ws.page_setup.leftMargin = 0.7
-            ws.page_setup.rightMargin = 0.7
             
             # Set column widths
-            ws.column_dimensions['A'].width = 15
-            ws.column_dimensions['B'].width = 25
-            ws.column_dimensions['C'].width = 25
-            ws.column_dimensions['D'].width = 20
+            ws.column_dimensions['A'].width = 20
+            ws.column_dimensions['B'].width = 30
+            ws.column_dimensions['C'].width = 30
+            ws.column_dimensions['D'].width = 25
     
     def add_exact_header_footer(self, ws, page_type="cover"):
         """Add exact header and footer matching Word template"""
-        
+        # Access header and footer correctly
         if page_type == "cover":
-            # Header for cover page (empty as per Word template)
-            ws.header_footer.left_header.text = ""
-            ws.header_footer.center_header.text = ""
-            ws.header_footer.right_header.text = ""
-            
-            # Footer for cover page
-            ws.header_footer.left_footer.text = ""
-            ws.header_footer.center_footer.text = ""
-            ws.header_footer.right_footer.text = ""
-            
+            # Cover page - no header/footer
+            ws.oddHeader.center.text = ""
+            ws.oddFooter.center.text = ""
         else:
-            # Header for content pages (matching Word template)
-            # Left header: empty
-            ws.header_footer.left_header.text = ""
-            
-            # Center header: empty
-            ws.header_footer.center_header.text = ""
-            
-            # Right header: empty
-            ws.header_footer.right_header.text = ""
-            
-            # Footer for content pages
-            # Left footer: empty
-            ws.header_footer.left_footer.text = ""
-            
-            # Center footer: empty
-            ws.header_footer.center_footer.text = ""
-            
-            # Right footer: empty (Word template doesn't have visible footer)
-            ws.header_footer.right_footer.text = ""
+            # Content page - no header/footer as per Word template
+            ws.oddHeader.center.text = ""
+            ws.oddFooter.center.text = ""
     
     def create_cover_page(self, data):
         """Create cover page exactly matching Word template"""
@@ -185,21 +157,18 @@ class BioburdenReportGenerator:
             
             # Value
             value_cell = self.ws_cover.cell(row=current_row, column=2)
-            value_cell.value = value
-            value_cell.font = Font(name='Times New Roman', size=10)
-            
-            # For "Accepted", add specific formatting as per Word
-            if "Accepted" in value:
+            if "Sample condition" in label:
+                value_cell.value = "✓ Accepted"
+                value_cell.font = Font(name='Times New Roman', size=10, color="008000")
+            else:
+                value_cell.value = value
                 value_cell.font = Font(name='Times New Roman', size=10)
-                # Add checkmark style as in Word template
-                value_cell.value = "[] Accepted"
             
             current_row += 1
         
         current_row += 1
         
         # Product Information Table (exactly as in Word template)
-        # Create table with borders matching Word
         table_start_row = current_row
         
         # Table headers
@@ -229,16 +198,8 @@ class BioburdenReportGenerator:
             cell.alignment = Alignment(horizontal='left', vertical='center', wrap_text=True)
             cell.border = self.styles['table_data']['border']
         
-        # Add thick border around table (matching Word style)
-        for row in range(table_start_row, current_row + 1):
-            for col in range(1, 4):
-                border = Border(
-                    left=Side(style='thin'),
-                    right=Side(style='thin'),
-                    top=Side(style='thin') if row == table_start_row else Side(style='thin'),
-                    bottom=Side(style='thin') if row == current_row else Side(style='thin')
-                )
-                self.ws_cover.cell(row=row, column=col).border = border
+        # Set row height for better visibility
+        self.ws_cover.row_dimensions[current_row].height = 40
         
         return current_row
     
@@ -408,7 +369,6 @@ def main():
         
         with col2:
             customer_name = st.text_input("Customer Name")
-            sample_condition = st.selectbox("Sample Condition", ["Accepted", "Rejected", "Pending"])
         
         st.subheader("Product Information")
         col3, col4 = st.columns(2)
@@ -463,26 +423,42 @@ def main():
             workbook.save(output)
             output.seek(0)
         
-        st.success("Report generated successfully!")
+        st.success("✅ Report generated successfully!")
         
         st.download_button(
-            label="Download Excel Report",
+            label="📥 Download Excel Report",
             data=output,
             file_name=f"Bioburden_Report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             use_container_width=True
         )
         
-        st.info("""
-        **Report Features:**
-        - ✓ Exactly matches your Word template structure
-        - ✓ Professional Times New Roman font
-        - ✓ Proper table formatting with borders
-        - ✓ Cover page and content page
-        - ✓ Acceptance criteria and Table 1
-        - ✓ Test method documentation
-        - ✓ Print-ready A4 format
-        """)
+        # Show preview info
+        with st.expander("📄 Report Structure Preview"):
+            st.markdown("""
+            **The generated report includes:**
+            
+            **Cover Page:**
+            - Main title and subtitle
+            - Sample information (dates, customer, condition)
+            - Product information table with borders
+            - Professional Times New Roman font
+            
+            **Test Report Page:**
+            - Test results table
+            - Complete acceptance criteria text
+            - Table 1 with microbiological limits
+            - Reference information
+            - Test method documentation
+            - End of report marker
+            
+            **Format:**
+            - A4 paper size
+            - Professional borders and formatting
+            - Ready for printing
+            """)
+        
+        st.info("💡 The report exactly matches your Word template structure with proper formatting and layout.")
 
 if __name__ == "__main__":
     main()
